@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game - You vs AI</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #201f1f;
+            font-family: Arial, sans-serif;
+        }
+
+        .game-container {
+            text-align: center;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            border: 2px solid #333;
+            margin: 20px auto;
+            transition: box-shadow 1s;
+            animation: containerGlow 3s infinite;
+        }
+
+
+
+        @keyframes containerGlow {
+    0%, 100% { box-shadow: 0 0 20px red; }
+    33% { box-shadow: 0 0 20px white; }
+    66% { box-shadow: 0 0 20px purple; }
+}
+
+
+        .square {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .white {
+            background-color: #fff;
+        }
+
+        .black {
+            background-color: #769656;
+        }
+
+        .selected {
+            background-color: #baca44;
+        }
+
+        .possible-move {
+            background-color: #f7f769;
+        }
+
+        .status {
+            margin: 20px 0;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: -1px;
+            color: white;
+            margin-top: +5px;
+        }
+
+        .status1 {
+            margin: 20px 0;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: -20px;
+            color: red;
+            margin-top: -8px;
+        }
+
+        .piece {
+            user-select: none;
+        }
+
+        video{
+            width: 70px;
+            height: 70px;
+            border: solid 2px red;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="status" id="status">Your turn (White)</div>
+        <p class="status1">𝑫𝒆𝒗𝒆𝒍𝒐𝒑𝒆𝒅 𝑩𝒀 𝒀𝑨𝑴𝑰</p>
+        <div class="board" id="board"></div>
+
+     <audio controls autoplay loop  src="./Vocaroo 19XT95hYZn1e.mp3"></audio>
+    <script>
+        // Constants
+        const PIECES = {
+            'white': {
+                'king': '♔',
+                'queen': '♕',
+                'rook': '♖',
+                'bishop': '♗',
+                'knight': '♘',
+                'pawn': '♙'
+            },
+            'black': {
+                'king': '♚',
+                'queen': '♛',
+                'rook': '♜',
+                'bishop': '♝',
+                'knight': '♞',
+                'pawn': '♟'
+            }
+        };
+
+        const INITIAL_BOARD = [
+            ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+            ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+            Array(8).fill(''),
+            Array(8).fill(''),
+            Array(8).fill(''),
+            Array(8).fill(''),
+            ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+            ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+        ];
+
+        // Utility functions
+        function getPieceType(letter) {
+            const types = {
+                'p': 'pawn',
+                'r': 'rook',
+                'n': 'knight',
+                'b': 'bishop',
+                'q': 'queen',
+                'k': 'king'
+            };
+            return types[letter];
+        }
+
+        function getSquareFromEvent(event) {
+            const element = event.target.closest('.square');
+            if (!element) return null;
+            
+            return {
+                row: parseInt(element.dataset.row),
+                col: parseInt(element.dataset.col)
+            };
+        }
+
+        // Move calculator
+        function calculatePossibleMoves(board, row, col, piece) {
+            const moves = [];
+            const pieceType = piece[1];
+            const isWhite = piece[0] === 'w';
+
+            switch (pieceType) {
+                case 'p':
+                    calculatePawnMoves(board, row, col, isWhite, moves);
+                    break;
+                case 'r':
+                    calculateStraightMoves(board, row, col, piece, moves);
+                    break;
+                case 'n':
+                    calculateKnightMoves(board, row, col, piece, moves);
+                    break;
+                case 'b':
+                    calculateDiagonalMoves(board, row, col, piece, moves);
+                    break;
+                case 'q':
+                    calculateStraightMoves(board, row, col, piece, moves);
+                    calculateDiagonalMoves(board, row, col, piece, moves);
+                    break;
+                case 'k':
+                    calculateKingMoves(board, row, col, piece, moves);
+                    break;
+            }
+
+            return moves;
+        }
+
+        function calculatePawnMoves(board, row, col, isWhite, moves) {
+            const direction = isWhite ? -1 : 1;
+            if (row + direction >= 0 && row + direction < 8 && !board[row + direction][col]) {
+                moves.push([row + direction, col]);
+                if ((isWhite && row === 6) || (!isWhite && row === 1)) {
+                    if (!board[row + 2 * direction][col]) {
+                        moves.push([row + 2 * direction, col]);
+                    }
+                }
+            }
+            
+            for (let i = -1; i <= 1; i += 2) {
+                if (col + i >= 0 && col + i < 8 && row + direction >= 0 && row + direction < 8) {
+                    const target = board[row + direction][col + i];
+                    if (target && target[0] !== (isWhite ? 'w' : 'b')) {
+                        moves.push([row + direction, col + i]);
+                    }
+                }
+            }
+        }
+
+        function calculateStraightMoves(board, row, col, piece, moves) {
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            calculateMovesInDirections(board, row, col, piece, moves, directions);
+        }
+
+        function calculateDiagonalMoves(board, row, col, piece, moves) {
+            const directions = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+            calculateMovesInDirections(board, row, col, piece, moves, directions);
+        }
+
+        function calculateMovesInDirections(board, row, col, piece, moves, directions) {
+            for (const [dr, dc] of directions) {
+                let r = row + dr;
+                let c = col + dc;
+                while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+                    if (!board[r][c]) {
+                        moves.push([r, c]);
+                    } else {
+                        if (board[r][c][0] !== piece[0]) {
+                            moves.push([r, c]);
+                        }
+                        break;
+                    }
+                    r += dr;
+                    c += dc;
+                }
+            }
+        }
+
+        function calculateKnightMoves(board, row, col, piece, moves) {
+            const knightMoves = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+            for (const [dr, dc] of knightMoves) {
+                const r = row + dr;
+                const c = col + dc;
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+                    if (!board[r][c] || board[r][c][0] !== piece[0]) {
+                        moves.push([r, c]);
+                    }
+                }
+            }
+        }
+
+        function calculateKingMoves(board, row, col, piece, moves) {
+            const kingMoves = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+            for (const [dr, dc] of kingMoves) {
+                const r = row + dr;
+                const c = col + dc;
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+                    if (!board[r][c] || board[r][c][0] !== piece[0]) {
+                        moves.push([r, c]);
+                    }
+                }
+            }
+        }
+
+        // Game State
+        class GameState {
+            constructor(board) {
+                this.board = board.map(row => [...row]);
+                this.selectedPiece = null;
+                this.selectedPosition = null;
+                this.possibleMoves = [];
+                this.playerTurn = true;
+            }
+
+            clearSelection() {
+                this.selectedPiece = null;
+                this.selectedPosition = null;
+                this.possibleMoves = [];
+            }
+
+            makeMove(fromRow, fromCol, toRow, toCol) {
+                this.board[toRow][toCol] = this.board[fromRow][fromCol];
+                this.board[fromRow][fromCol] = '';
+            }
+        }
+
+        // AI
+        function makeAIMove(gameState) {
+            const possibleAIMoves = [];
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const piece = gameState.board[row][col];
+                    if (piece && piece[0] === 'b') {
+                        const moves = calculatePossibleMoves(gameState.board, row, col, piece);
+                        moves.forEach(move => {
+                            possibleAIMoves.push({
+                                from: [row, col],
+                                to: move,
+                                piece: piece
+                            });
+                        });
+                    }
+                }
+            }
+
+            if (possibleAIMoves.length > 0) {
+                const move = possibleAIMoves[Math.floor(Math.random() * possibleAIMoves.length)];
+                gameState.makeMove(move.from[0], move.from[1], move.to[0], move.to[1]);
+                return true;
+            }
+            
+            return false;
+        }
+
+        // UI
+        function initializeBoard(gameState, handleSquareClick) {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    
+                    const piece = gameState.board[row][col];
+                    if (piece) {
+                        const color = piece[0] === 'w' ? 'white' : 'black';
+                        const pieceType = getPieceType(piece[1]);
+                        square.innerHTML = `<span class="piece">${PIECES[color][pieceType]}</span>`;
+                    }
+
+                    square.addEventListener('click', handleSquareClick);
+                    boardElement.appendChild(square);
+                }
+            }
+        }
+
+        function updateStatus(playerTurn) {
+            const status = document.getElementById('status');
+            status.textContent = playerTurn ? 'Your turn (White)' : 'AI thinking...';
+        }
+
+        function clearHighlights() {
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(square => {
+                square.classList.remove('selected', 'possible-move');
+            });
+        }
+
+        function highlightSquares(row, col, possibleMoves) {
+            clearHighlights();
+            const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (selectedSquare) {
+                selectedSquare.classList.add('selected');
+            }
+
+            possibleMoves.forEach(([r, c]) => {
+                const square = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+                if (square) {
+                    square.classList.add('possible-move');
+                }
+            });
+        }
+
+        // Main game logic
+        const gameState = new GameState(INITIAL_BOARD);
+
+        function handleSquareClick(event) {
+            if (!gameState.playerTurn) return;
+
+            const square = getSquareFromEvent(event);
+            if (!square) return;
+
+            const { row, col } = square;
+
+            if (gameState.selectedPiece) {
+                const move = gameState.possibleMoves.find(m => m[0] === row && m[1] === col);
+                if (move) {
+                    gameState.makeMove(gameState.selectedPosition[0], gameState.selectedPosition[1], row, col);
+                    gameState.clearSelection();
+                    gameState.playerTurn = false;
+                    
+                    initializeBoard(gameState, handleSquareClick);
+                    updateStatus(gameState.playerTurn);
+                    
+                    setTimeout(() => {
+                        if (makeAIMove(gameState)) {
+                            gameState.playerTurn = true;
+                            initializeBoard(gameState, handleSquareClick);
+                            updateStatus(gameState.playerTurn);
+                        }
+                    }, 500);
+                } else {
+                    gameState.clearSelection();
+                    highlightSquares(row, col, []);
+                }
+            } else {
+                const piece = gameState.board[row][col];
+                if (piece && piece[0] === 'w') {
+                    gameState.selectedPiece = piece;
+                    gameState.selectedPosition = [row, col];
+                    gameState.possibleMoves = calculatePossibleMoves(gameState.board, row, col, piece);
+                    highlightSquares(row, col, gameState.possibleMoves);
+                }
+            }
+        }
+
+        // Initialize the game
+        initializeBoard(gameState, handleSquareClick);
+    </script>
+</body>
+</html>
